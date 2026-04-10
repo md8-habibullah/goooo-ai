@@ -10,6 +10,7 @@ const UI = {
     tapToSpeak: "Tap to speak",
     listening: "Listening...",
     tapToStop: "Tap to Stop",
+    instruction: "When you are finished speaking, click the Stop button to automatically submit and process your report.",
     cancel: "Cancel",
     confirm: "Confirm",
     successAlert: "Your report has been successfully recorded.",
@@ -31,6 +32,7 @@ const UI = {
     tapToSpeak: "কথা বলতে ট্যাপ করুন",
     listening: "আমি শুনছি...",
     tapToStop: "রেকর্ডিং বন্ধ করুন",
+    instruction: "কথা বলা শেষ হলে, স্বয়ংক্রিয়ভাবে আপনার রিপোর্ট প্রসেস করতে স্টপ বাটনে ক্লিক করুন।",
     cancel: "বাতিল করুন",
     confirm: "নিশ্চিত করুন",
     successAlert: "আপনার রিপোর্টটি সফলভাবে জমা দেওয়া হয়েছে।",
@@ -123,7 +125,13 @@ export default function Home() {
       });
 
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to transcribe audio.');
+      if (!res.ok) {
+         // Check if it's the specific OpenRouter Guardrail Error to give a helpful message
+         if (data.error && data.error.includes("guardrail")) {
+             throw new Error("OpenRouter Privacy Error! You must visit https://openrouter.ai/settings/privacy and disable \"Require Zero Data Retention\" because OpenAI audio models require standard data permissions.");
+         }
+         throw new Error(data.error || 'Failed to transcribe audio.');
+      }
 
       const text = data.text;
       setTranscript(text);
@@ -252,8 +260,8 @@ export default function Home() {
         )}
 
         {appState === 'LISTENING' && (
-          <div className="text-center flex flex-col items-center animate-in fade-in zoom-in duration-300">
-            <div className="relative mb-8">
+          <div className="text-center flex flex-col items-center animate-in fade-in zoom-in duration-300 px-6">
+            <div className="relative mb-6">
                <div className="absolute inset-0 border-[6px] border-red-500 rounded-full animate-ping opacity-20"></div>
                <button 
                   onClick={stopRecording}
@@ -263,8 +271,17 @@ export default function Home() {
                 </button>
             </div>
             
-            <h1 className="text-[2rem] font-bold text-slate-800 mb-3">{currentUI.listening}</h1>
-            <p className="text-slate-500 font-bold text-sm tracking-wide uppercase mt-4 mb-2">{currentUI.tapToStop}</p>
+            <h1 className="text-[2rem] font-bold text-slate-800 mb-2">{currentUI.listening}</h1>
+            <p className="text-red-500 font-bold text-[15px] underline tracking-wide uppercase mb-4 cursor-pointer" onClick={stopRecording}>
+              {currentUI.tapToStop}
+            </p>
+            
+            {/* Added Instruction Text Below the Button */}
+            <div className="mt-4 bg-blue-50/50 border border-blue-100 p-4 rounded-xl max-w-sm">
+               <p className="text-slate-600 font-medium text-[15px] leading-relaxed">
+                 {currentUI.instruction}
+               </p>
+            </div>
           </div>
         )}
 
@@ -319,7 +336,7 @@ export default function Home() {
                   {parsedData.intent}
                 </h2>
                 <div className="inline-flex py-1 px-3 bg-slate-50 border border-slate-200 text-slate-600 text-sm rounded-full font-bold">
-                  {language === 'EN' ? 'Confidence' : 'নিশ্চয়তাระดับ'}: {Math.round((parsedData.confidence || 0) * 100)}%
+                  {language === 'EN' ? 'Confidence' : 'নিশ্চয়তা'}: {Math.round((parsedData.confidence || 0) * 100)}%
                 </div>
             </div>
 
