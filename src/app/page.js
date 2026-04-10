@@ -1,79 +1,149 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
-import { Mic, Loader2, CheckCircle2, Send, Edit, XCircle } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
+import { Mic, Loader2, CheckCircle2, Send, AlertCircle, Volume2, Square, Server, Target, Cpu, RefreshCw } from 'lucide-react';
+
+const UI = {
+  EN: {
+    title: "Speak your problem",
+    subtitle: "Voice-powered civic assistant for Bangladesh",
+    tapToSpeak: "Tap to speak",
+    listening: "Listening...",
+    tapToStop: "Tap to Stop",
+    cancel: "Cancel",
+    confirm: "Confirm",
+    successAlert: "Your report has been successfully recorded.",
+    completed: "Action Completed",
+    startNew: "Start New Request",
+    oops: "Oops",
+    tryAgain: "Try Again",
+    agentSteps: [
+      { id: 1, text: "Connecting to Neural Voice Engine", icon: Server },
+      { id: 2, text: "Extracting rural dialects & keywords", icon: Volume2 },
+      { id: 3, text: "Structuring civic intent payload", icon: Target },
+      { id: 4, text: "Cross-referencing municipality database", icon: Cpu },
+      { id: 5, text: "Drafting final actionable report", icon: CheckCircle2 }
+    ]
+  },
+  BN: {
+    title: "আপনার সমস্যার কথা বলুন",
+    subtitle: "বাংলাদেশের জন্য ভয়েস-চালিত নাগরিক এআই",
+    tapToSpeak: "কথা বলতে ট্যাপ করুন",
+    listening: "আমি শুনছি...",
+    tapToStop: "রেকর্ডিং বন্ধ করুন",
+    cancel: "বাতিল করুন",
+    confirm: "নিশ্চিত করুন",
+    successAlert: "আপনার রিপোর্টটি সফলভাবে জমা দেওয়া হয়েছে।",
+    completed: "পদক্ষেপ সম্পন্ন হয়েছে",
+    startNew: "নতুন সমস্যা জানান",
+    oops: "দুঃখিত",
+    tryAgain: "আবার চেষ্টা করুন",
+    agentSteps: [
+      { id: 1, text: "ভয়েস ইঞ্জিন কানেক্ট করা হচ্ছে", icon: Server },
+      { id: 2, text: "কন্ঠস্বর এবং সমস্যার ধরণ সনাক্ত করা হচ্ছে", icon: Volume2 },
+      { id: 3, text: "নাগরিক তথ্যে রূপান্তর করা হচ্ছে", icon: Target },
+      { id: 4, text: "সরকারি ডাটাবেস যাচাই করা হচ্ছে", icon: Cpu },
+      { id: 5, text: "রিপোর্ট প্রস্তুত করা হচ্ছে", icon: CheckCircle2 }
+    ]
+  }
+};
 
 export default function Home() {
-  const [appState, setAppState] = useState('IDLE'); // IDLE, LISTENING, PROCESSING, RESULT, SUCCESS
+  const [appState, setAppState] = useState('IDLE'); 
   const [transcript, setTranscript] = useState('');
   const [parsedData, setParsedData] = useState(null);
+  const [errorMsg, setErrorMsg] = useState('');
+  const [language, setLanguage] = useState('EN'); 
   
-  const recognitionRef = useRef(null);
+  // Agentic Processing states
+  const [activeStepIndex, setActiveStepIndex] = useState(0);
 
+  const mediaRecorderRef = useRef(null);
+  const audioChunksRef = useRef([]);
+
+  // Mocking the agentic step progress during loading phases
   useEffect(() => {
-    // Initialize Speech Recognition
-    if (typeof window !== 'undefined') {
-      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-      if (SpeechRecognition) {
-        recognitionRef.current = new SpeechRecognition();
-        recognitionRef.current.continuous = false;
-        recognitionRef.current.interimResults = true;
-        // recognitionRef.current.lang = 'bn-BD'; // Defaulting to Bangla, but user can speak English if model supports cross-lingua or if we set bilingual (usually better to set a specific locale, though some APIs try to auto-detect. We'll use bn-BD as requested or just the default)
-        
-        recognitionRef.current.onresult = (event) => {
-          let currentTranscript = '';
-          for (let i = event.resultIndex; i < event.results.length; ++i) {
-            currentTranscript += event.results[i][0].transcript;
-          }
-          setTranscript(currentTranscript);
-        };
-
-        recognitionRef.current.onerror = (event) => {
-          console.error('Speech recognition error', event.error);
-          setAppState('IDLE');
-        };
-
-        recognitionRef.current.onend = () => {
-          // When user stops speaking, if we were listening, transition to processing
-          if (appState === 'LISTENING') {
-            processIntent(transcript);
-          }
-        };
-      } else {
-        console.warn("Speech Recognition API not supported in this browser.");
-      }
+    let interval;
+    if (appState === 'TRANSCRIBING' || appState === 'PROCESSING') {
+      setActiveStepIndex(0);
+      interval = setInterval(() => {
+        setActiveStepIndex(prev => (prev < 4 ? prev + 1 : prev));
+      }, 1500); // Step advances every 1.5s
     }
-  }, [appState, transcript]);
+    return () => clearInterval(interval);
+  }, [appState]);
 
-  const startListening = () => {
-    if (recognitionRef.current) {
+  const startRecording = async () => {
+    try {
       setTranscript('');
+      setErrorMsg('');
+      setParsedData(null);
+      
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+      mediaRecorderRef.current = mediaRecorder;
+      audioChunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
+      };
+
+      mediaRecorder.onstop = async () => {
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        stream.getTracks().forEach(track => track.stop());
+        await handleAudioUpload(audioBlob);
+      };
+
+      mediaRecorder.start();
       setAppState('LISTENING');
-      try {
-        recognitionRef.current.start();
-      } catch(e) {
-        // Handle case where recognition is already started
-        recognitionRef.current.stop();
-        setTimeout(() => recognitionRef.current.start(), 100);
-      }
-    } else {
-      alert("Speech Recognition not supported in your browser.");
+    } catch (err) {
+      console.error(err);
+      setErrorMsg('Microphone access denied. Please allow microphone permissions in your browser address bar.');
+      setAppState('ERROR');
     }
   };
 
-  const stopListening = () => {
-    if (recognitionRef.current && appState === 'LISTENING') {
-      recognitionRef.current.stop();
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+      mediaRecorderRef.current.stop();
+      setAppState('TRANSCRIBING');
+    }
+  };
+
+  const handleAudioUpload = async (audioBlob) => {
+    try {
+      const formData = new FormData();
+      formData.append('file', audioBlob, 'recording.webm');
+
+      const res = await fetch('/api/transcribe', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to transcribe audio.');
+
+      const text = data.text;
+      setTranscript(text);
+      
+      setAppState('PROCESSING');
+      await processIntent(text);
+
+    } catch (error) {
+      console.error(error);
+      setErrorMsg(error.message || 'Server error during transcription.');
+      setAppState('ERROR');
     }
   };
 
   const processIntent = async (textToProcess) => {
-    if (!textToProcess.trim()) {
-      setAppState('IDLE');
+    if (!textToProcess || !textToProcess.trim()) {
+      setErrorMsg('We could not hear any speech. Please try again.');
+      setAppState('ERROR');
       return;
     }
-    
-    setAppState('PROCESSING');
     
     try {
       const res = await fetch('/api/process-intent', {
@@ -89,8 +159,8 @@ export default function Home() {
       setAppState('RESULT');
     } catch (error) {
       console.error(error);
-      alert('Failed to understand the request. Please try again.');
-      setAppState('IDLE');
+      setErrorMsg('Failed to structure the request intent. Please try again.');
+      setAppState('ERROR');
     }
   };
 
@@ -107,8 +177,8 @@ export default function Home() {
       setAppState('SUCCESS');
     } catch (error) {
       console.error(error);
-      alert('Failed to submit action.');
-      setAppState('RESULT');
+      setErrorMsg('Failed to submit action to the database.');
+      setAppState('ERROR');
     }
   };
 
@@ -116,137 +186,233 @@ export default function Home() {
     setAppState('IDLE');
     setTranscript('');
     setParsedData(null);
+    setErrorMsg('');
+    setActiveStepIndex(0);
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+      try { mediaRecorderRef.current.stop(); } catch(e) {}
+    }
   };
 
+  const currentUI = UI[language];
+
   return (
-    <main className="min-h-screen flex flex-col items-center justify-center p-4">
-      <div className="w-full max-w-lg bg-card text-card-foreground rounded-2xl shadow-xl border border-border overflow-hidden flex flex-col">
+    <div className="min-h-screen flex flex-col bg-[#F4F6F9] font-sans antialiased selection:bg-slate-200">
+      
+      {/* Top Header Row */}
+      <header className="w-full flex justify-between items-center p-6 md:px-10">
+        <div className="flex items-center gap-3">
+          <div className="text-xl drop-shadow-sm">🇧🇩</div>
+          <span className="font-bold text-slate-800 text-[1.1rem] tracking-tight">NagrikAI</span>
+        </div>
         
-        {/* Visual Status System header */}
-        <div className="bg-primary text-primary-foreground p-4 flex justify-between items-center">
-          <h1 className="font-bold tracking-wide">Civic Assistant</h1>
-          <div className="flex space-x-2 text-sm font-medium items-center">
-            {appState === 'IDLE' && <span className="flex items-center gap-1"><Mic size={16}/> Ready</span>}
-            {appState === 'LISTENING' && <span className="flex items-center gap-1 text-red-300 animate-pulse"><Mic size={16}/> Listening</span>}
-            {appState === 'PROCESSING' && <span className="flex items-center gap-1 text-blue-300"><Loader2 size={16} className="spin-slow" /> Processing</span>}
-            {appState === 'RESULT' && <span className="flex items-center gap-1 text-green-300"><CheckCircle2 size={16}/> Confirm</span>}
-            {appState === 'SUCCESS' && <span className="flex items-center gap-1 text-green-300"><Send size={16}/> Submitted</span>}
+        <div className="flex items-center">
+          <div className="flex items-center gap-2 bg-white border border-slate-200 shadow-sm text-slate-600 rounded-full px-4 py-1.5 text-sm font-bold">
+             {appState === 'IDLE' && <><Mic size={14} className="opacity-70" /> {language === 'EN' ? 'Ready' : 'প্রস্তুত'}</>}
+             {appState === 'LISTENING' && <><Mic size={14} className="text-red-500 animate-pulse" /> {language === 'EN' ? 'Recording' : 'রেকর্ডিং...'}</>}
+             {appState === 'TRANSCRIBING' && <><Loader2 size={14} className="spin-slow" /> AI Voice</>}
+             {appState === 'PROCESSING' && <><Loader2 size={14} className="spin-slow" /> Agent</>}
+             {appState === 'RESULT' && <><Target size={14} className="text-blue-600" /> Action</>}
+             {appState === 'SUCCESS' && <><CheckCircle2 size={14} className="text-green-600" /> Done</>}
+             {appState === 'ERROR' && <><AlertCircle size={14} className="text-red-500" /> Error</>}
           </div>
         </div>
+      </header>
 
-        {/* Dynamic Content Area */}
-        <div className="p-8 flex-1 flex flex-col items-center justify-center min-h-[400px]">
-          
-          {appState === 'IDLE' && (
-            <div className="text-center w-full">
-              <h2 className="text-2xl font-bold mb-8 text-foreground/80">Speak your problem</h2>
+      {/* Main Content Center */}
+      <main className="flex-1 flex flex-col items-center justify-center p-4">
+        
+        {appState === 'IDLE' && (
+          <div className="text-center flex flex-col items-center animate-in fade-in zoom-in duration-300">
+            <h1 className="text-3xl md:text-[2rem] font-bold text-slate-800 mb-3 tracking-tight">{currentUI.title}</h1>
+            <p className="text-slate-500 text-sm md:text-base font-medium mb-12">{currentUI.subtitle}</p>
+            
+            <button 
+              onClick={startRecording}
+              className="w-32 h-32 md:w-[130px] md:h-[130px] bg-white text-slate-600 rounded-full flex items-center justify-center shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-200 hover:scale-[1.03] hover:text-blue-600 hover:shadow-[0_12px_40px_rgb(0,0,0,0.08)] hover:border-blue-100 transition-all active:scale-95 duration-200"
+            >
+              <Mic size={42} strokeWidth={2.5} />
+            </button>
+            <p className="mt-6 text-slate-400 text-sm font-bold tracking-wide uppercase">{currentUI.tapToSpeak}</p>
+
+            <div className="mt-10 bg-white border border-slate-200 rounded-full p-1 flex shadow-sm w-[150px]">
               <button 
-                onClick={startListening}
-                className="mx-auto w-32 h-32 bg-primary text-primary-foreground rounded-full flex items-center justify-center shadow-lg hover:bg-primary/90 transition-all active:scale-95"
+                onClick={() => setLanguage('EN')}
+                className={`flex-1 text-[13px] py-1.5 font-bold rounded-full transition-colors ${language === 'EN' ? 'bg-slate-800 text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'}`}
               >
-                <Mic size={48} />
+                EN
+              </button>
+              <button 
+                onClick={() => setLanguage('BN')}
+                className={`flex-1 text-[13px] py-1.5 font-bold rounded-full transition-colors ${language === 'BN' ? 'bg-slate-800 text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'}`}
+              >
+                বাংলা
               </button>
             </div>
-          )}
+          </div>
+        )}
 
-          {appState === 'LISTENING' && (
-            <div className="text-center w-full">
-              <div className="mic-pulse mx-auto w-32 h-32 bg-primary text-primary-foreground rounded-full flex items-center justify-center shadow-lg mb-8">
-                <Mic size={48} />
-              </div>
-              <p className="text-lg text-muted-foreground animate-pulse mb-4">Listening...</p>
-              <div className="bg-muted p-4 rounded-xl min-h-[100px] flex items-center justify-center">
-                <p className="text-lg italic text-foreground/80">&quot;{transcript || 'Waiting for voice...'}&quot;</p>
-              </div>
-              <button 
-                onClick={stopListening}
-                className="mt-6 px-6 py-2 bg-secondary text-secondary-foreground rounded-full font-medium active:scale-95 transition-all"
-              >
-                Stop & Process
-              </button>
+        {appState === 'LISTENING' && (
+          <div className="text-center flex flex-col items-center animate-in fade-in zoom-in duration-300">
+            <div className="relative mb-8">
+               <div className="absolute inset-0 border-[6px] border-red-500 rounded-full animate-ping opacity-20"></div>
+               <button 
+                  onClick={stopRecording}
+                  className="relative z-10 w-[130px] h-[130px] bg-red-50 text-red-600 rounded-full flex items-center justify-center shadow-[0_0_0_12px_rgba(239,68,68,0.1)] border border-red-200 active:scale-95 transition-all"
+                >
+                  <Square size={38} fill="currentColor" />
+                </button>
             </div>
-          )}
+            
+            <h1 className="text-[2rem] font-bold text-slate-800 mb-3">{currentUI.listening}</h1>
+            <p className="text-slate-500 font-bold text-sm tracking-wide uppercase mt-4 mb-2">{currentUI.tapToStop}</p>
+          </div>
+        )}
 
-          {appState === 'PROCESSING' && (
-            <div className="text-center w-full flex flex-col items-center">
-              <Loader2 size={64} className="text-primary spin-slow mb-6" />
-              <p className="text-xl font-medium text-foreground/80">
-                {parsedData ? "Submitting Request..." : "Understanding your request..."}
-              </p>
+        {(appState === 'TRANSCRIBING' || appState === 'PROCESSING') && (
+          <div className="w-full max-w-md bg-white p-8 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100 flex flex-col items-start animate-in fade-in zoom-in duration-300">
+            
+            <div className="flex items-center gap-3 mb-6 w-full pb-4 border-b border-slate-100">
+               <RefreshCw size={20} className="text-blue-500 spin-slow" />
+               <h2 className="text-xl font-bold text-slate-800">
+                Agent Processing...
+               </h2>
             </div>
-          )}
+            
+            <div className="space-y-5 w-full">
+               {currentUI.agentSteps.map((step, index) => {
+                  const isActive = index === activeStepIndex;
+                  const isChecked = index < activeStepIndex;
+                  const StepIcon = step.icon;
+                  
+                  return (
+                    <div 
+                      key={step.id} 
+                      className={`flex items-center gap-4 transition-all duration-500 ${
+                        isChecked ? 'opacity-100' : isActive ? 'opacity-100 translate-x-1' : 'opacity-30'
+                      }`}
+                    >
+                       <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 transition-colors duration-500
+                          ${isChecked ? 'bg-green-50 text-green-600 border-green-200' 
+                          : isActive ? 'bg-blue-50 text-blue-600 border-blue-200' 
+                          : 'bg-slate-50 text-slate-400 border-slate-100'}`}
+                        >
+                          {isChecked ? <CheckCircle2 size={16} /> : <StepIcon size={14} />}
+                       </div>
+                       <span className={`font-semibold text-[15px] ${isActive ? 'text-slate-800' : 'text-slate-500'}`}>
+                         {step.text}
+                       </span>
+                    </div>
+                  );
+               })}
+            </div>
+          </div>
+        )}
 
-          {appState === 'RESULT' && parsedData && (
-            <div className="w-full">
-              <div className="mb-6 text-center">
-                <h2 className="text-2xl font-bold mb-2">
-                  <span className="text-primary">Action:</span> {parsedData.intent}
+        {appState === 'RESULT' && parsedData && (
+          <div className="w-full max-w-lg bg-white p-6 md:p-8 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-200 animate-in fade-in slide-in-from-bottom-8 duration-500">
+             
+             <div className="mb-8 flex flex-col items-center text-center">
+                <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mb-4">
+                  <Target size={24} />
+                </div>
+                <h2 className="text-[1.8rem] font-bold text-slate-800 tracking-tight leading-none mb-3">
+                  {parsedData.intent}
                 </h2>
-                <div className="inline-block px-3 py-1 bg-muted rounded-full text-sm font-medium text-muted-foreground">
-                  Confidence: {Math.round((parsedData.confidence || 0) * 100)}%
+                <div className="inline-flex py-1 px-3 bg-slate-50 border border-slate-200 text-slate-600 text-sm rounded-full font-bold">
+                  {language === 'EN' ? 'Confidence' : 'নিশ্চয়তাระดับ'}: {Math.round((parsedData.confidence || 0) * 100)}%
                 </div>
-              </div>
-              
-              <div className="space-y-4 bg-muted/50 p-5 rounded-xl border border-border">
-                <div>
-                  <span className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Summary</span>
-                  <p className="text-lg font-medium">{parsedData.summary}</p>
-                </div>
-                
-                <div className="grid grid-cols-2 gap-4">
+            </div>
+
+            <div className="space-y-6">
+               {transcript && (
                   <div>
-                    <span className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Category</span>
-                    <p className="font-medium">{parsedData.category}</p>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-2">{language === 'EN' ? 'Voice Transcript' : 'ভয়েস ট্রান্সক্রিপ্ট'}</span>
+                    <p className="text-slate-700 italic border-l-2 border-slate-200 pl-4 py-1 text-[15px] leading-relaxed">&quot;{transcript}&quot;</p>
+                  </div>
+                )}
+
+                <div className="bg-[#f8fafc] border border-slate-200 p-5 rounded-2xl">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-2">{language === 'EN' ? 'Agent Summary' : 'এজেন্ট সারসংক্ষেপ'}</span>
+                  <p className="text-slate-800 font-bold text-[17px] leading-snug">{parsedData.summary}</p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-y-6 px-2">
+                  <div>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1.5">{language === 'EN' ? 'Category' : 'বিভাগ'}</span>
+                    <p className="text-slate-800 font-bold">{parsedData.category}</p>
                   </div>
                   <div>
-                    <span className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Priority</span>
-                    <p className={`font-medium ${parsedData.priority === 'High' ? 'text-destructive' : ''}`}>{parsedData.priority}</p>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1.5">{language === 'EN' ? 'Priority' : 'জরুরী'}</span>
+                    <p className={`font-black ${parsedData.priority === 'High' ? 'text-red-600' : 'text-slate-800'}`}>
+                      {parsedData.priority}
+                    </p>
                   </div>
                   <div className="col-span-2">
-                    <span className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Location</span>
-                    <p className="font-medium">{parsedData.location}</p>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1.5">{language === 'EN' ? 'Detected Location' : 'স্থান'}</span>
+                    <p className="text-slate-800 font-bold">{parsedData.location}</p>
                   </div>
                 </div>
-              </div>
-
-              <div className="mt-8 flex gap-4">
-                <button 
-                  onClick={reset}
-                  className="flex-1 flex items-center justify-center gap-2 py-3 bg-secondary text-secondary-foreground rounded-xl font-bold hover:bg-secondary/80 transition-colors"
-                >
-                  <Edit size={18} /> Cancel / Edit
-                </button>
-                <button 
-                  onClick={confirmAction}
-                  className="flex-1 flex items-center justify-center gap-2 py-3 bg-primary text-primary-foreground rounded-xl font-bold hover:bg-primary/90 transition-colors"
-                >
-                  <CheckCircle2 size={18} /> Confirm
-                </button>
-              </div>
             </div>
-          )}
 
-          {appState === 'SUCCESS' && (
-            <div className="text-center w-full">
-              <div className="mx-auto w-24 h-24 bg-green-100 text-green-600 rounded-full flex items-center justify-center mb-6">
-                <CheckCircle2 size={48} />
-              </div>
-              <h2 className="text-2xl font-bold mb-2">Action Completed</h2>
-              <p className="text-muted-foreground mb-8">
-                Your report has been successfully recorded in the system.
-              </p>
-              
+            <div className="mt-8 flex gap-3">
               <button 
                 onClick={reset}
-                className="w-full py-4 bg-primary text-primary-foreground rounded-xl font-bold hover:bg-primary/90 transition-colors"
+                className="flex-1 py-4 bg-white border-2 border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl font-bold transition-all active:scale-95"
               >
-                Start New Request
+                {currentUI.cancel}
+              </button>
+              <button 
+                onClick={confirmAction}
+                className="flex-1 py-4 bg-slate-800 text-white border-2 border-slate-800 rounded-xl font-bold hover:bg-slate-700 transition-all active:scale-95"
+              >
+                {currentUI.confirm}
               </button>
             </div>
-          )}
+          </div>
+        )}
 
-        </div>
-      </div>
-    </main>
+        {appState === 'SUCCESS' && (
+          <div className="text-center animate-in fade-in zoom-in duration-300">
+            <div className="mx-auto w-24 h-24 bg-green-50 text-green-600 rounded-full flex items-center justify-center mb-6 border-4 border-green-100">
+              <CheckCircle2 size={40} strokeWidth={3} />
+            </div>
+            <h2 className="text-[2rem] font-bold text-slate-800 mb-3">{currentUI.completed}</h2>
+            <p className="text-slate-500 font-medium mb-10 w-full max-w-[280px] mx-auto">{currentUI.successAlert}</p>
+            
+            <button 
+              onClick={reset}
+              className="px-10 py-4 bg-slate-800 text-white rounded-full font-bold hover:bg-slate-700 transition-all active:scale-95 shadow-md"
+            >
+              {currentUI.startNew}
+            </button>
+          </div>
+        )}
+
+        {appState === 'ERROR' && (
+          <div className="text-center max-w-sm animate-in fade-in zoom-in duration-300">
+            <div className="mx-auto w-24 h-24 bg-red-50 text-red-500 rounded-full flex items-center justify-center mb-6 shadow-sm border border-red-100">
+              <AlertCircle size={48} />
+            </div>
+            <h2 className="text-2xl font-bold text-slate-800 mb-3">{currentUI.oops}</h2>
+            <p className="text-slate-600 mb-8 font-medium bg-white p-4 rounded-xl border border-red-100">{errorMsg}</p>
+            <button 
+              onClick={reset}
+              className="px-10 py-4 bg-slate-800 text-white rounded-full font-bold hover:bg-slate-700 transition-all active:scale-95 shadow-md"
+            >
+              {currentUI.tryAgain}
+            </button>
+          </div>
+        )}
+
+      </main>
+
+      {/* Footer */}
+      <footer className="w-full pb-8 pt-4">
+        <p className="text-center text-[10px] uppercase tracking-[0.1em] text-slate-400 font-bold">
+          NagrikAI — Civic Voice Assistant • Hackathon MVP
+        </p>
+      </footer>
+
+    </div>
   );
 }

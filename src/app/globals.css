@@ -4,59 +4,24 @@
 
 @layer base {
   :root {
-    --background: #f8fafc; /* Slate 50 - Very light grey/silver */
-    --foreground: #0f172a; /* Slate 900 - Almost black for high contrast */
-    --card: #ffffff;
-    --card-foreground: #0f172a;
-    --primary: #334155; /* Slate 700 - Deep grey */
-    --primary-foreground: #ffffff;
-    --secondary: #e2e8f0; /* Slate 200 - Silver */
-    --secondary-foreground: #0f172a;
-    --muted: #f1f5f9; /* Slate 100 */
-    --muted-foreground: #64748b; /* Slate 500 */
-    --accent: #cbd5e1; /* Slate 300 */
-    --accent-foreground: #0f172a;
-    --destructive: #ef4444;
-    --destructive-foreground: #ffffff;
-    --border: #e2e8f0;
-    --input: #e2e8f0;
-    --ring: #94a3b8; /* Slate 400 */
-    --radius: 0.75rem;
+    --background: #F4F6F9;
+    --foreground: #0f172a; 
   }
 }
 
 @layer base {
   body {
-    @apply bg-background text-foreground tracking-tight;
+    @apply bg-[#F4F6F9] text-slate-800 tracking-tight;
     font-family: 'Inter', system-ui, -apple-system, sans-serif;
   }
 }
 
 /* Animations */
-@keyframes pulse-ring {
-  0% { transform: scale(0.8); opacity: 0.5; }
-  80% { transform: scale(1.5); opacity: 0; }
-  100% { transform: scale(1.5); opacity: 0; }
-}
-
-.mic-pulse {
-  position: relative;
-}
-.mic-pulse::before {
-  content: '';
-  position: absolute;
-  left: 0; top: 0; right: 0; bottom: 0;
-  border-radius: 50%;
-  background: var(--primary);
-  animation: pulse-ring 2s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
-  z-index: -1;
-}
-
 @keyframes spin-slow {
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }
 }
 
 .spin-slow {
-  animation: spin-slow 3s linear infinite;
+  animation: spin-slow 2s linear infinite;
 }
