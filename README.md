@@ -1,3 +1,13 @@
+> ### ⚠️ INTELLECTUAL PROPERTY NOTICE & WARNING
+> **Copyright © 2024-2026 [md8-habibullah](https://github.com/md8-habibullah) & Dreams of X. All Rights Reserved.**
+> 
+> This repository contains proprietary code, logic, and architectural designs for **NagrikAI**. 
+> 
+> **UNAUTHORIZED COPYING, REPRODUCTION, OR REDISTRIBUTION OF THIS SOURCE CODE, IN WHOLE OR IN PART, IS STRICTLY PROHIBITED.**  
+> This project was developed as a competition MVP. Any attempt to clone, fork (for the purpose of theft), or use this logic for commercial or public use without explicit written permission will result in legal action and notification to the relevant hackathon authorities and platforms. 
+> 
+> **Be original. Do not copy.**
+
 # NagrikAI 🇧🇩 — Bringing Every Voice to the Forefront
 
 *A Hackathon MVP: Action-Based Voice AI Civic Assistant for Bangladesh*
