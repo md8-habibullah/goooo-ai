@@ -1,5 +1,5 @@
 > ### ⚠️ INTELLECTUAL PROPERTY NOTICE & WARNING
-> **Copyright © 2024-2026 [md8-habibullah](https://github.com/md8-habibullah) & Dreams of X. All Rights Reserved.**
+> **Copyright © 2024-2025 [md8-habibullah](https://github.com/md8-habibullah) & Dreams of X. All Rights Reserved.**
 > 
 > This repository contains proprietary code, logic, and architectural designs for **NagrikAI**. 
 > 
