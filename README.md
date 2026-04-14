@@ -57,4 +57,14 @@ We are not just building software; we are building a lifeline. By converting a s
 Every voice deserves to be heard. 
 
 ---
+
+### 🏆 Recognition & Awards
+
+NagrikAI was developed as a competition MVP for the **Impact Dhaka 2026** International AI Hackathon, organized by Cognisor AI at the BUET ECE Building. Out of 57 competing teams, our team, **Dreams of X**, secured the **2nd Runner-Up** position for our solution focusing on AI for Urban Innovation.
+
+**Official References:**
+* **University Notice:** [Northern University Bangladesh Official Recognition](https://nub.ac.bd/nub/notice/v9qsj7xz/nub-student-team-runner-up-in-international-ai-hackathon)
+* **National News:** [BD Pratidin - আন্তর্জাতিক হ্যাকাথনে এনইউবি’র জয়জয়কার](https://www.bd-pratidin.com/campus-online/2026/04/13/1238245)
+* **Community Post:** [NUBCC Official Announcement](https://www.facebook.com/nubccofficial/posts/1362111089284344/)
+
 *Built with ❤️ for Bangladesh.*
